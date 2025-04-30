@@ -451,3 +451,6 @@ terraform.rc
 # End of https://www.toptal.com/developers/gitignore/api/terraform,helm,python
 infra/tf/kubeconfig
 infra/tf/terraform.tfvars
+
+.vscode/
+.DS_STORE

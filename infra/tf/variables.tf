@@ -36,7 +36,7 @@ variable "civo_token" {}
 # The Civo Region to deploy the cluster in
 variable "region" {
   type        = string
-  default     = "LON1" #NYC1
+  default     = "NYC1" #NYC1
   description = "The region to provision the cluster against"
 }
 
@@ -76,21 +76,12 @@ variable "deploy_nv_device_plugin_ds" {
 variable "default_models" {
   description = "List of default models to use in Ollama Web UI."
   type        = list(string)
-  default     = ["llama3.2", "deepseek-r1"] #Include additional models here if required
+  # default     = ["llama3.2", "deepseek-r1"] #Include additional models here if required
+  default = ["llama3.3", "gemma3:4b", "qwen3:8b"]
 }
 
 variable "ollama_ui_image_version" {
   description = "The image tag to use in the Ollama Web UI Helm Chart."
   type        = string
   default     = "latest"
-}
-
-# Output the ollama-ui service IP
-output "ollama_ui_service_ip" {
-  value = var.deploy_ollama_ui ? data.kubernetes_service.ollama-ui.status.0.load_balancer.0.ingress.0.ip : null
-}
-
-# Output the web app load balancer public IP
-output "ollama_app_load_balancer_ip" {
-  value = var.deploy_app ? data.kubernetes_service.app.status.0.load_balancer.0.ingress.0.ip : null
 }
