@@ -454,3 +454,28 @@ infra/tf/terraform.tfvars
 
 .vscode/
 .DS_STORE
+
+# Node modules
+node_modules/
+package-lock.json
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Terraform files with secrets (typo protection)
+*.ftvars
+infra/tf/terraform.ftvars
+
+# Kubeconfig
+kubeconfig
+*.kubeconfig
+
+# Python virtual environments
+.venv/
+venv/
+
+# Temporary files
+*.tmp
+*.bak

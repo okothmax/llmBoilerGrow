@@ -1,10 +1,31 @@
 replicaCount: 1
 
 image:
-  # customise this to your own repository
-  repository: ghcr.io/civo-learn/llm-boilerplate-app
+  repository: okothmax/llm-boilerplate-app
   pullPolicy: Always
   tag: "latest"
+
+secret:
+  enabled: true
+  name: app-secrets
+  data:
+    agent_result_token: dummy-agent-token
+    inngest_signing_key: dummy-signing-key
+    inngest_event_key: dummy-event-key
+
+env:
+  - name: INNGEST_APP_ID
+    value: "civo-llm-agent"
+  - name: OLLAMA_BASE_URL
+    value: "http://ollama.ollama.svc.cluster.local:11434/v1"
+
+secretEnv:
+  - name: AGENT_RESULT_TOKEN
+    key: agent_result_token
+  - name: INNGEST_SIGNING_KEY
+    key: inngest_signing_key
+  - name: INNGEST_EVENT_KEY
+    key: inngest_event_key
 
 service:
   type: LoadBalancer

@@ -1,0 +1,15 @@
+{
+  "name": "agentkit-service",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@inngest/agent-kit": "^0.0.28",
+    "express": "^4.19.2",
+    "inngest": "^3.22.0",
+    "isomorphic-fetch": "^3.0.0",
+    "openai": "^4.0.0"
+  }
+}

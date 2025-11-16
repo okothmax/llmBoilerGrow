@@ -1,5 +1,5 @@
 resource "civo_kubernetes_cluster" "cluster" {
-  name = var.cluster_name
+  name = "${var.cluster_name}-alt"
 
   # Connect to the network & firewall
   firewall_id = civo_firewall.firewall.id

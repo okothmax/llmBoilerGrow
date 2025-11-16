@@ -1,0 +1,5 @@
+Flask>=3.0,<4
+gunicorn>=21,<22
+inngest>=0.4,<1
+openai>=1.12,<2
+pydantic>=2.4,<3
