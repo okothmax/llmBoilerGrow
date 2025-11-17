@@ -21,6 +21,12 @@ resource "civo_kubernetes_cluster" "cluster" {
   timeouts {
     create = "10m"
   }
+
+  lifecycle {
+    ignore_changes = [
+      kubernetes_version
+    ]
+  }
 }
 
 # Create a local file with the kubeconfig

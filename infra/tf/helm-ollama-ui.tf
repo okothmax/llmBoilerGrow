@@ -18,6 +18,12 @@ resource "helm_release" "ollama-ui" {
     value = var.ollama_ui_image_version
   }
 
+  # Disable persistence so PVC is not needed
+  set {
+    name  = "persistence.enabled"
+    value = "false"
+  }
+
 }
 
 data "kubernetes_service" "ollama-ui" {
