@@ -194,7 +194,7 @@ Re-run `terraform apply` if values change.
 
 1. Retrieve the application IP from Terraform output or via `kubectl get svc -n apps`. Example placeholder:
    
-   > **Live IP:** `TODO_REPLACE_WITH_CLUSTER_IP`
+   > **Live IP:** `TODO_REPLACE_WITH_CLUSTER_IP` NOt available now
 
 2. Test from your machine:
    ```bash
@@ -239,12 +239,3 @@ Re-run `terraform apply` if values change.
 
 ---
 
-## 10. Deliverables Checklist
-
-- [ ] GitHub repository with updated implementation.
-- [ ] Loom video (5–10 minutes) covering approach and demo.
-- [ ] Live IP address from the deployed Civo cluster: `TODO_REPLACE_WITH_CLUSTER_IP`.
-
----
-
-Happy shipping!
