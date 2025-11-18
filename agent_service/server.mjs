@@ -9,8 +9,9 @@ const eventKey = process.env.INNGEST_EVENT_KEY;
 const signingKey = process.env.INNGEST_SIGNING_KEY;
 const ollamaBaseUrl =
   process.env.OLLAMA_BASE_URL ?? "http://ollama.ollama.svc.cluster.local:11434/v1";
+const flaskPort = process.env.FLASK_RUN_PORT ?? "5000";
 const resultWebhookUrl =
-  process.env.AGENT_RESULT_WEBHOOK ?? "http://127.0.0.1:5000/internal/agent-result";
+  process.env.AGENT_RESULT_WEBHOOK ?? `http://127.0.0.1:${flaskPort}/internal/agent-result`;
 const resultToken = process.env.AGENT_RESULT_TOKEN ?? "dev-token";
 const port = Number(process.env.AGENTKIT_PORT ?? 3000);
 

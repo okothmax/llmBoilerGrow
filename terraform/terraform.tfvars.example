@@ -1,0 +1,12 @@
+civo_token = "YOUR_CIVO_TOKEN"
+region     = "LON1"
+stack_name = "llm-agent-compute"
+
+# Optional: Override defaults
+# ssh_public_key     = "ssh-rsa AAAA..."
+# instance_size      = "g4s.kube.medium"
+# image_repo         = "okothmax/llm-boilerplate-app"
+# image_tag          = "latest"
+# ollama_model       = "llama3.2:3b"
+# inngest_app_id     = "civo-agent"
+# agent_result_token = "your-secret-token"
