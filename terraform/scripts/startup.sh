@@ -43,7 +43,7 @@ sleep 10
 
 # Pull Ollama model
 echo "Pulling Ollama model..."
-ollama pull ${OLLAMA_MODEL}
+HOME=/root ollama pull ${OLLAMA_MODEL}
 
 # Create app directory
 mkdir -p /opt/agent-app

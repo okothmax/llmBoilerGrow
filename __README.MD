@@ -1,6 +1,6 @@
 # Civo LLM Boilerplate – Run Book
 
-This document explains how to configure the asynchronous Flask + AgentKit stack locally, deploy it to the Civo GPU cluster, and validate the workflow end to end.
+This document explains how to configure the asynchronous Flask + AgentKit stack locally, deploy it to Civo Cloud, and validate the workflow end to end.
 
 ---
 
@@ -8,8 +8,8 @@ This document explains how to configure the asynchronous Flask + AgentKit stack 
 
 - **Flask API (Python)** – Exposes `/api/agent` (POST) to enqueue prompts, persists state in SQLite, and `/api/agent/<request_id>` (GET) for polling status. Emits `app/agent.request` events via the Inngest Python SDK.
 - **Agent Worker (Node.js)** – Runs an autonomous research agent with tool-calling capabilities backed by Ollama. The agent can search the web, look up current times in major cities, and retrieve dates when needed. It uses multi-step reasoning: first deciding if tools are needed, then executing them, and finally synthesizing results. Listens for Inngest events, executes the workflow, and posts results back to Flask at `/internal/agent-result`. *Note: We use Inngest's event-driven architecture (AgentKit pattern) without the literal `@inngest/agent-kit` package due to Python compatibility limitations.*
-- **Start Script** – `start.sh` launches both Gunicorn (port 80) and the AgentKit service (port 3000) inside the same container.
-- **Terraform + Helm** – Terraform provisions the Civo cluster and installs Helm charts (Ollama, Web UI, example app). The Helm chart deploys the combined container and wires environment variables.
+- **Start Script** – `start.sh` launches both Gunicorn (port 5000 by default) and the AgentKit service (port 3000) inside the same container.
+- **Terraform** – Provisions a Civo compute instance with Docker, Ollama, Inngest Dev Server, and systemd services to run the application stack.
 
 ---
 
@@ -25,9 +25,9 @@ This document explains how to configure the asynchronous Flask + AgentKit stack 
 
 You will also need:
 
-- Civo API key with GPU quota.
-- Inngest event/signing keys (from the Inngest dashboard).
-- Access to an Ollama instance (deployed via Terraform in this repo).
+- Civo API key (sign up at https://dashboard.civo.com/signup).
+- For production: Inngest event/signing keys (from the Inngest dashboard).
+- For development: Inngest Dev Server runs automatically (no keys needed).
 
 ---
 
@@ -36,16 +36,19 @@ You will also need:
 Create a `.env` (or export variables in your shell) with values such as:
 
 ```bash
-export INNGEST_APP_ID="civo-llm-agent"
-export INNGEST_SIGNING_KEY="<your-inngest-signing-key>"
-# Optional: only required when sending events from Node
-export INNGEST_EVENT_KEY="<your-inngest-event-key>"
+# For local development with Inngest Dev Server
+export INNGEST_APP_ID="local-agent"
+export INNGEST_DEV=1
+export AGENT_RESULT_TOKEN="local-secret"
+export OLLAMA_BASE_URL="http://localhost:11434/v1"
+export FLASK_RUN_PORT=5000
 
-export AGENT_RESULT_TOKEN="replace-with-random-string"
-export OLLAMA_BASE_URL="http://localhost:11434/v1"  # when port-forwarding Ollama locally
+# For production deployment (optional)
+export INNGEST_SIGNING_KEY="<your-inngest-signing-key>"
+export INNGEST_EVENT_KEY="<your-inngest-event-key>"
 ```
 
-When deploying to Kubernetes, set the same keys through Helm values (see Section 6.2). Keep sensitive values in Kubernetes secrets.
+When deploying to Civo, these are configured via Terraform variables (see Section 6).
 
 ---
 
@@ -62,8 +65,9 @@ When deploying to Kubernetes, set the same keys through Helm values (see Section
    ```
 
 2. **Run supporting services**
-   - Port-forward Ollama if running in-cluster: `kubectl port-forward svc/ollama 11434:11434 -n ollama`.
-   - Start the Inngest Dev Server (requires `INNGEST_DEV=1` in both services):
+   - Install and run Ollama locally: `curl -fsSL https://ollama.com/install.sh | sh && ollama serve`
+   - Pull a model: `ollama pull llama3.2:3b`
+   - Start the Inngest Dev Server:
      ```bash
      INNGEST_DEV=1 npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
      ```
@@ -78,7 +82,7 @@ When deploying to Kubernetes, set the same keys through Helm values (see Section
    
    ./start.sh
    ```
-   - Gunicorn will bind to `http://0.0.0.0:5000` locally (or port 80 in container).
+   - Flask app will bind to `http://0.0.0.0:5000`.
    - Agent service listens at `http://0.0.0.0:3000/api/inngest`.
 
 4. **Exercise the API**
@@ -129,93 +133,138 @@ image:
 
 ---
 
-## 6. Kubernetes Deployment
+## 6. Deployment Options
 
-### 6.1 Terraform
+This project supports two deployment methods:
 
-1. Populate `infra/tf/terraform.tfvars` with your Civo token:
-   ```hcl
-   civo_token = "YOUR_CIVO_TOKEN"
-   ```
-2. Enable application deployment (either update `infra/tf/variables.tf` or override via tfvars):
-   ```hcl
-   deploy_app = true
-   ```
-3. Execute Terraform:
+### 6.1 Compute Instance Deployment (Recommended for Development)
+
+Deploy to a single Civo compute instance with Docker, Ollama, Inngest Dev Server, and the Flask application. This is the fastest way to get started and ideal for development/testing.
+
+1. **Navigate to the Terraform directory:**
    ```bash
-   cd infra/tf
-   terraform init
-   terraform plan -out=plan.out
-   terraform apply plan.out
+   cd terraform
    ```
 
-Terraform outputs include the app LoadBalancer IP (`ollama_app_load_balancer_ip`).
+2. **Create your configuration file:**
+   ```bash
+   cp terraform.tfvars.example terraform.tfvars
+   ```
 
-### 6.2 Helm values & secrets
+3. **Edit `terraform.tfvars` with your settings:**
+   ```hcl
+   civo_token         = "your-civo-api-token"
+   stack_name         = "llm-agent-compute"
+   region             = "LON1"
+   instance_size      = "g4s.large"
+   inngest_app_id     = "civo-agent"
+   agent_result_token = "your-secure-token"
+   ```
 
-Set environment variables for the pod in `infra/helm/app/values.yaml`:
+4. **Deploy:**
+   ```bash
+   terraform init
+   terraform apply
+   ```
 
-```yaml
-env:
-  - name: INNGEST_APP_ID
-    value: "civo-llm-agent"
-  - name: OLLAMA_BASE_URL
-    value: "http://ollama.ollama.svc.cluster.local:11434/v1"
-  - name: AGENT_RESULT_TOKEN
-    valueFrom:
-      secretKeyRef:
-        name: app-secrets
-        key: agent_result_token
+5. **Access your application:**
+   
+   After deployment (5-10 minutes), you'll see:
+   ```
+   app_public_ip  = "74.220.18.66"
+   frontend_url   = "http://74.220.18.66:5000"
+   inngest_dev_ui = "http://74.220.18.66:8288"
+   ssh_command    = "ssh civo@74.220.18.66"
+   ```
 
-secretEnv:
-  - name: INNGEST_SIGNING_KEY
-    secretName: app-secrets
-    secretKey: inngest_signing_key
-  - name: INNGEST_EVENT_KEY
-    secretName: app-secrets
-    secretKey: inngest_event_key
-```
+6. **Test the deployment:**
+   ```bash
+   # Test the API
+   curl -X POST http://<your-ip>:5000/api/agent \
+     -H 'Content-Type: application/json' \
+     -d '{"prompt":"What time is it in Tokyo?"}'
+   
+   # Check status
+   curl http://<your-ip>:5000/api/agent/<request_id>
+   ```
 
-Create the secret (example):
+**What Gets Deployed:**
+- Civo compute instance (g4s.large: 4 CPU, 8GB RAM)
+- Docker, Node.js 20.x, Ollama with llama3.2 model
+- Systemd services for Ollama, Inngest Dev Server, and the app
+- Firewall rules for ports 22, 80, 443, 3000, 5000, 8288, 11434
 
+**Monitoring:**
 ```bash
-kubectl create secret generic app-secrets \
-  --namespace apps \
-  --from-literal=agent_result_token=<random> \
-  --from-literal=inngest_signing_key=<signing-key> \
-  --from-literal=inngest_event_key=<event-key>
+ssh civo@<your-ip>
+
+# Check services
+sudo systemctl status ollama inngest-dev agent-app
+
+# View logs
+sudo journalctl -u agent-app -f
+sudo journalctl -u inngest-dev -f
+
+# Check startup script
+sudo tail -f /var/log/startup.log
 ```
 
-Re-run `terraform apply` if values change.
+**Troubleshooting:**
+If the Ollama model wasn't pulled correctly:
+```bash
+sudo HOME=/root ollama pull llama3.2:latest
+sudo systemctl restart agent-app
+```
+
+For detailed documentation, see:
+- `terraform/README.md` - Complete deployment guide
+- `terraform/DEPLOY.md` - Quick reference
+
+### 6.2 Alternative: Kubernetes Deployment (GPU Cluster)
+
+For GPU-accelerated workloads, you can deploy to a Civo Kubernetes cluster. See the main `README.md` and `infra/tf/` directory for Kubernetes deployment instructions.
 
 ---
 
 ## 7. Post-Deployment Validation
 
-1. Retrieve the application IP from Terraform output or via `kubectl get svc -n apps`. Example placeholder:
-   
-   > **Live IP:** `TODO_REPLACE_WITH_CLUSTER_IP` NOt available now
+### For Compute Instance Deployment:
 
-2. Test from your machine:
+1. Get your instance IP from Terraform output:
    ```bash
-   curl -X POST http://<live-ip>/api/agent \
+   cd terraform
+   terraform output
+   ```
+
+2. Test the API:
+   ```bash
+   # Enqueue a request
+   curl -X POST http://<instance-ip>:5000/api/agent \
      -H 'Content-Type: application/json' \
-     -d '{"prompt":"Summarise the benefits of owning data sovereignty."}'
+     -d '{"prompt":"What are the latest developments in quantum computing?"}'
 
-   curl http://<live-ip>/api/agent/<uuid>
+   # Poll for result (replace <uuid> with the request_id from above)
+   curl http://<instance-ip>:5000/api/agent/<uuid>
    ```
 
-3. Monitor logs:
+3. Access the Inngest Dev UI:
+   ```
+   http://<instance-ip>:8288
+   ```
+
+4. Monitor logs via SSH:
    ```bash
-   kubectl logs deploy/app -n apps -c app --follow
-   kubectl logs deploy/app -n apps -c agentkit --follow  # if split containers are used later
+   ssh civo@<instance-ip>
+   sudo journalctl -u agent-app -f
+   sudo journalctl -u inngest-dev -f
    ```
+
 
 ---
 
-## 8. Loom Demo Checklist
+## 8. Demo Checklist
 
-1. Walk through repo structure (Flask API, Agent service with tools, Terraform/Helm).
+1. Walk through repo structure (Flask API, Agent service with tools, Terraform deployment).
 2. Explain the agent's tool-calling capabilities (web search, time lookup, date).
 3. Show local run demonstrating:
    - Simple query (no tools needed)
@@ -223,8 +272,9 @@ Re-run `terraform apply` if values change.
    - Query requiring time lookup (e.g., "time in Nairobi")
 4. Highlight multi-step reasoning in logs (decide → call tool → synthesize).
 5. Show Inngest Dev Server traces with tool execution steps.
-6. Demonstrate deployment on Civo and share the final IP.
-7. Close with agent architecture benefits (async, autonomous, tool-enabled).
+6. Demonstrate deployment on Civo compute instance and share the final IP.
+7. Show the frontend UI and Inngest Dev UI at ports 5000 and 8288.
+8. Close with agent architecture benefits (async, autonomous, tool-enabled).
 
 ---
 
@@ -233,9 +283,11 @@ Re-run `terraform apply` if values change.
 | Symptom | Action |
 |---------|--------|
 | `401` on `/internal/agent-result` | Ensure `AGENT_RESULT_TOKEN` matches between Flask and AgentKit environments. |
-| Inngest Dev Server cannot handshake | Confirm `INNGEST_SIGNING_KEY` is set and reachable from the pod; enable `INNGEST_DEV=1` for local runs. |
-| No response from Ollama | Validate the model is present (`terraform apply` pulls defaults) and that the service name is correct. |
-| Gunicorn fails to bind port 80 locally | Run with elevated privileges or override the port (`FLASK_RUN_PORT=5000 ./start.sh`). |
+| Inngest Dev Server cannot handshake | Confirm `INNGEST_SIGNING_KEY` is set; enable `INNGEST_DEV=1` for local/dev runs. |
+| No response from Ollama | Validate the model is present: `sudo HOME=/root ollama list` on the instance. Pull if needed: `sudo HOME=/root ollama pull llama3.2:latest` |
+| Model not found error | The app looks for `llama3.2:latest`. Pull it with: `sudo HOME=/root ollama pull llama3.2:latest` |
+| Services not starting on instance | Check startup logs: `sudo tail -f /var/log/startup.log` and restart services: `sudo systemctl restart ollama inngest-dev agent-app` |
+| Gunicorn fails to bind port locally | Override the port: `FLASK_RUN_PORT=5000 ./start.sh` |
 
 ---
 
